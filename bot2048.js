@@ -48,10 +48,16 @@ var Bot2048 = (function () {
                     return;
                 }
 
+                // Initialize public object to bear the prototype chain.
+                initializing = true;
+                var _public = new Class();
+                initializing = false;
+
                 // Bind public properties to public object.
-                var _public = {};
                 for (var property in this) {
-                    if (! /^_/.test(property) && typeof this[property] === 'function') {
+                    if (/^_/.test(property)) {
+                        _public[property] = null;
+                    } else if (typeof this[property] === 'function') {
                         _public[property] = this[property].bind(this);
                     }
                 }
@@ -101,6 +107,48 @@ var Bot2048 = (function () {
     });
     var codeConverter = new CodeConverter();
 
+    var Direction = {
+        DOWN  : 0,
+        LEFT  : 1,
+        RIGHT : 2,
+        UP    : 3,
+        all   : function () {
+            return [
+                this.DOWN,
+                this.LEFT,
+                this.RIGHT,
+                this.UP
+            ];
+        }
+    };
+
+    var Point = Class.extend({
+        __construct : function (i, j) {
+            this.i = i;
+            this.j = j;
+        },
+        i : function () {
+            return this.i;
+        },
+        j : function () {
+            return this.j;
+        },
+        getAdjacent : function (direction) {
+            var i = this.i;
+            var j = this.j;
+            switch (direction) {
+                case Direction.DOWN : ++i; break;
+                case Direction.LEFT : --j; break;
+                case Direction.RIGHT: ++j; break;
+                case Direction.UP   : --i; break;
+            }
+            if (i < 0 || i >= SIZE || j < 0 || j >= SIZE) {
+                return null;
+            }
+            return new Point(i, j);
+        }
+    });
+
     var Field = Class.extend({
         SIZE : SIZE,
         __construct : function (values) {
@@ -113,6 +161,9 @@ var Bot2048 = (function () {
             }
         },
         getValue : function (i, j) {
+            if (i instanceof Point) {
+                return this.values[i.i()][i.j()];
+            }
             return this.values[i][j];
         },
         getCode : function () {
@@ -158,21 +209,6 @@ var Bot2048 = (function () {
             return new Field(this.values);
         }
     });
-
-    var Direction = {
-        DOWN  : 0,
-        LEFT  : 1,
-        RIGHT : 2,
-        UP    : 3,
-        all   : function () {
-            return [
-                this.DOWN,
-                this.LEFT,
-                this.RIGHT,
-                this.UP
-            ];
-        }
-    };
 
     var Mutator = Class.extend({
         SIZE  : SIZE,
@@ -298,18 +334,70 @@ var Bot2048 = (function () {
 
     ////////////////////////////////// Aritificial intelligence //////////////////////////////////
 
-    var MaximumQualityStrategy = Class.extend({
-        evaluate : function (field) {
+    var MaximumFinder = Class.extend({
+        find : function (field) {
             var max = 0;
+            var maxi = -1;
+            var maxj = -1;
             for (var i = 0; i < SIZE; ++i) {
                 for (var j = 0; j < SIZE; ++j) {
                     var value = field.getValue(i, j);
                     if (value > max) {
                         max = value;
+                        maxi = i;
+                        maxj = j;
                     }
                 }
             }
+            return new Point(maxi, maxj);
+        }
+    });
+
+    var MaximumQualityStrategy = Class.extend({
+        getFinder : function () {
+            if (typeof this.finder === 'undefined') {
+                this.finder = new MaximumFinder();
+            }
+            return this.finder;
+        },
+        evaluate : function (field) {
+            return field.getValue(this.getFinder().find(field));
+        }
+    });
+
+    var ChainQualityStrategy = Class.extend({
+        getFinder : function () {
+            if (typeof this.finder === 'undefined') {
+                this.finder = new MaximumFinder();
+            }
+            return this.finder;
+        },
+        evaluateRecursive : function (field, point, sum) {
+            var max = 0;
+            var pointValue = field.getValue(point);
+            if (! pointValue) {
+                return sum + 1;
+            }
+            for (var directions = Direction.all(), i = 0; i < directions.length; ++i) {
+                var adjacent = point.getAdjacent(directions[i]);
+                if (! adjacent) {
+                    continue;
+                }
+                var adjacentValue = field.getValue(adjacent);
+                if (adjacentValue > pointValue) {
+                    continue;
+                }
+                var value = adjacentValue === pointValue
+                    ? sum + pointValue * 2
+                    : this.evaluateRecursive(field, adjacent, sum + pointValue);
+                if (value > max) {
+                    max = value;
+                }
+            }
             return max;
+        },
+        evaluate : function (field) {
+            return this.evaluateRecursive(field, this.finder.find(field), 0);
         }
     });
 
@@ -344,17 +432,8 @@ var Bot2048 = (function () {
             var mutator = this.getMutator();
             for (var directions = Direction.all(), i = 0; i < directions.length; ++i) {
                 var candidate = mutator.move(field, directions[i]);
-
-                console.log('QualityDecider.decide: i = ' + i);
-                console.log('QualityDecider.decide: directions[i] = ' + directions[i]);
-                console.log('QualityDecider.decide: candidate.getCode() = ' + candidate.getCode());
-                console.log('QualityDecider.decide: candidate.equals(field) = ' + candidate.equals(field));
-
                 if (! candidate.equals(field)) {
                     var value = this.qualityStrategy.evaluate(candidate);
-
-                    console.log('QualityDecider.decide: value', value);
-
                     moves.push(new QualityMove(directions[i], value));
                 }
             }
