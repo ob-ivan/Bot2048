@@ -2,38 +2,88 @@ var Bot2048 = (function () {
 
     const SIZE = 4;
 
-    // Class
+    var Class = (function () {
+        var initializing = false, fnTest = /xyz/.test(function(){xyz;}) ? /\b_super\b/ : /.*/;
 
-    var Class = function Class(properties) {
-        var Class = function () {
-            var local = Object.create(properties);
-            for (var property in properties) {
-                if (! property.match(/^_/)) {
-                    if (typeof properties[property] === 'function') {
-                        this[property] = local[property].bind(local);
+        // The base Class implementation (does nothing)
+        var Class = function () {};
+
+        // Create a new Class that inherits from this class
+        Class.extend = function extend(prop) {
+            var _super = this.prototype;
+
+            // Instantiate a base class (but only create the instance,
+            // don't run the init constructor)
+            initializing = true;
+            var prototype = new this();
+            initializing = false;
+
+            // Copy the properties over onto the new prototype
+            for (var name in prop) {
+                // Check if we're overwriting an existing function
+                prototype[name] = typeof prop[name] == "function" && typeof _super[name] == "function" && fnTest.test(prop[name])
+                    ? (function (name, fn) {
+                        return function() {
+                            var tmp = this._super;
+
+                            // Add a new ._super() method that is the same method
+                            // but on the super-class
+                            this._super = _super[name];
+
+                            // The method only need to be bound temporarily, so we
+                            // remove it when we're done executing
+                            var ret = fn.apply(this, arguments);
+                            this._super = tmp;
+
+                            return ret;
+                        };
+                    })(name, prop[name])
+                    : prop[name];
+            }
+
+            // The dummy class constructor
+            function Class() {
+                if (initializing) {
+                    return;
+                }
+
+                // Bind public properties to public object.
+                var _public = {};
+                for (var property in this) {
+                    if (! /^_/.test(property) && typeof this[property] === 'function') {
+                        _public[property] = this[property].bind(this);
                     }
                 }
+                this._public = _public;
+
+                if (this.__construct) {
+                    this.__construct.apply(this, arguments);
+                }
+
+                return _public;
             }
-            if (typeof local.__construct === 'function') {
-                local.__construct.apply(local, arguments);
-            }
+            Class.prototype = prototype;
+            Class.prototype.constructor = Class;
+            Class.extend = extend;
+
+            return Class;
         };
-        for (var property in properties) {
-            Class.prototype[property] = properties[property];
-        }
+
         return Class;
-    };
+    })();
 
-    // class CodeConverter
+    //////////////////////////////////////////// Model ////////////////////////////////////////////
 
-    var CodeConverter = Class({
-        logCache : {
-            0 : 0,
-            1 : 0
-        },
-        charCache : {
-            0 : '0',
-            1 : '0',
+    var CodeConverter = Class.extend({
+        __construct : function () {
+            this.logCache = {
+                0 : 0,
+                1 : 0
+            };
+            this.charCache = {
+                0 : '0',
+                1 : '0',
+            };
         },
         log2 : function (value) {
             if (typeof this.logCache[value] === 'undefined') {
@@ -48,10 +98,9 @@ var Bot2048 = (function () {
             return this.charCache[value];
         }
     });
+    var codeConverter = new CodeConverter();
 
-    // class Field
-
-    var Field = Class({
+    var Field = Class.extend({
         SIZE : SIZE,
         __construct : function (values) {
             this.values = [];
@@ -67,7 +116,6 @@ var Bot2048 = (function () {
         },
         getCode : function () {
             if (typeof this.code === 'undefined') {
-                var codeConverter = new CodeConverter();
                 var chars = [];
                 for (var i = 0; i < this.SIZE; ++i) {
                     for (var j = 0; j < this.SIZE; ++j) {
@@ -90,9 +138,7 @@ var Bot2048 = (function () {
         }
     });
 
-    // class FieldBuilder
-
-    var FieldBuilder = Class({
+    var FieldBuilder = Class.extend({
         SIZE : SIZE,
         __construct : function () {
             this.values = [];
@@ -105,13 +151,12 @@ var Bot2048 = (function () {
         },
         setValue : function (i, j, value) {
             this.values[i][j] = value;
+            return this._public;
         },
         produce : function () {
             return new Field(this.values);
         }
     });
-
-    // enum Direction
 
     var Direction = {
         DOWN  : 0,
@@ -120,9 +165,7 @@ var Bot2048 = (function () {
         UP    : 3,
     };
 
-    // class Mutator
-
-    var Mutator = Class({
+    var Mutator = Class.extend({
         SIZE  : SIZE,
         moveLeft : function (field) {
             var builder = new FieldBuilder();
@@ -193,35 +236,29 @@ var Bot2048 = (function () {
         }
     });
 
-    // class RegistryEntry
+    /////////////////////////////////////// DOM interaction ///////////////////////////////////////
 
-    var RegistryEntry = Class({
-        __construct : function (field) {
-            this.field = field;
+    var FieldReader = Class.extend({
+        makePositionSelector : function (i, j) {
+            return ['.tile-container .tile-position', j + 1, i + 1].join('-');
         },
-    });
-
-    // class FieldRegistry
-
-    var FieldRegistry = Class({
-        __construct : function () {
-            /**
-             *  Maps field codes to registry entries.
-            **/
-            this.entries = {};
-        },
-        register : function (field) {
-            var code = field.getCode();
-            if (typeof this.entries[code] === 'undefined') {
-                this.entries[code] = new RegistryEntry(field);
+        read : function () {
+            var builder = new FieldBuilder();
+            for (var i = 0; i < 4; ++i) {
+                for (var j = 0; j < 4; ++j) {
+                    var position = document.querySelector(
+                        this.makePositionSelector(i, j)
+                    );
+                    if (position) {
+                        builder.setValue(i, j, parseInt(position.textContent));
+                    }
+                }
             }
-            return this.entries[code];
-        },
+            return builder.produce();
+        }
     });
 
-    // class Keyboard
-
-    var Keyboard = Class({
+    var Keyboard = Class.extend({
         keyCodes : {},
         getKeyCodeRaw : function (direction) {
             switch (direction) {
@@ -245,28 +282,52 @@ var Bot2048 = (function () {
         }
     });
 
-    // class Bot2048
+    ////////////////////////////////// Aritificial intelligence //////////////////////////////////
 
-    var Bot2048 = Class({
-        makePositionSelector : function (i, j) {
-            return ['.tile-container .tile-position', j + 1, i + 1].join('-');
+    var RandomDecider = Class.extend({
+        __construct : function () {
+            this.directions = [
+                Direction.DOWN,
+                Direction.LEFT,
+                Direction.RIGHT,
+                Direction.UP
+            ];
         },
-        readField : function () {
-            var builder = new FieldBuilder();
-            for (var i = 0; i < 4; ++i) {
-                for (var j = 0; j < 4; ++j) {
-                    var position = document.querySelector(
-                        this.makePositionSelector(i, j)
-                    );
-                    if (position) {
-                        builder.setValue(i, j, parseInt(position.textContent));
-                    }
-                }
+        getRandomItem : function (array) {
+            return array[Math.floor(array.length * Math.random())];
+        },
+        decide : function (field) {
+            if (! field instanceof Field) {
+                throw new TypeError('Argument 1 must be instance of Field in RandomDecider.decide()');
             }
-            return builder.produce();
+            return this.getRandomItem(this.directions);
+        }
+    });
+
+    var Bot2048 = Class.extend({
+        INTERVAL : 100,
+        __construct : function () {
+            this.fieldReader = new FieldReader();
+            this.keyboard = new Keyboard();
+            this.decider = new RandomDecider();
+        },
+        turn : function () {
+            var field = this.fieldReader.read();
+            var direction = this.decider.decide(field);
+            this.keyboard.press(direction);
+            return ! document.getElementsByClassName('game-over').length;
+        },
+        start : function () {
+            var self = this;
+            this.timeout = window.setTimeout(function recursion() {
+                if (self.turn()) {
+                    this.timeout = window.setTimeout(recursion, self.INTERVAL);
+                }
+            }, 0);
+        },
+        stop : function () {
+            window.clearTimeout(this.timeout);
         }
     });
     return Bot2048;
 })();
-
-var bot = new Bot2048();
