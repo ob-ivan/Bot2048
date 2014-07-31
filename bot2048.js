@@ -215,7 +215,30 @@ var Bot2048 = (function () {
         }
     });
 
+    var Locus = {
+        CORNER : 0,
+        SIDE   : 1,
+        MIDDLE : 2
+    };
+
     var Traverser = Class.extend({
+        getLocus : function (point) {
+            var i = point.i(),
+                j = point.j();
+            if (i > 0) {
+                i = SIZE - 1 - i;
+            }
+            if (j > 0) {
+                j = SIZE - 1 - j;
+            }
+            if (! (i + j)) {
+                return Locus.CORNER;
+            }
+            if (! (i * j)) {
+                return Locus.SIDE;
+            }
+            return Locus.MIDDLE;
+        },
         getAdjacent : function (point, direction) {
             var i = point.i();
             var j = point.j();
@@ -408,7 +431,7 @@ var Bot2048 = (function () {
                     continue;
                 }
                 var value = adjacentValue === pointValue
-                    ? sum + pointValue * 2
+                    ? sum + pointValue * 2 - 1
                     : this.evaluateRecursive(field, adjacent, sum + pointValue);
                 if (value > max) {
                     max = value;
@@ -434,6 +457,20 @@ var Bot2048 = (function () {
         }
     });
 
+    var LocusChainQualityStrategy = ChainQualityStrategy.extend({
+        getLocusPenalty : function (field) {
+            var max = this.getFinder().find(field);
+            switch (this.getTraverser().getLocus(max)) {
+                case Locus.CORNER: return 0;
+                case Locus.SIDE  : return max.v() / 2;
+                case Locus.MIDDLE: return max.v();
+            }
+        },
+        evaluateRecursive : function (field, point, sum) {
+            return this._super(field, point, sum) - this.getLocusPenalty(field);
+        }
+    });
+
     var QualityMove = Class.extend({
         __construct : function (direction, quality) {
             this.direction = direction;
@@ -449,10 +486,22 @@ var Bot2048 = (function () {
 
     /**
      *  interface Decider {
-     *      // Returns null if no turns can be made.
+     *      // Return null iff no turns can be made.
      *      Direction? decide(Field field);
      *  }
     **/
+
+    var RandomDecider = Class.extend({
+        getRandomItem : function (array) {
+            return array[Math.floor(array.length * Math.random())];
+        },
+        decide : function (field) {
+            if (! field instanceof Field) {
+                throw new TypeError('Argument 1 must be instance of Field in RandomDecider.decide()');
+            }
+            return this.getRandomItem(Direction.all());
+        }
+    });
 
     var QualityDecider = Class.extend({
         __construct : function (qualityStrategy) {
@@ -486,25 +535,13 @@ var Bot2048 = (function () {
         }
     });
 
-    var RandomDecider = Class.extend({
-        getRandomItem : function (array) {
-            return array[Math.floor(array.length * Math.random())];
-        },
-        decide : function (field) {
-            if (! field instanceof Field) {
-                throw new TypeError('Argument 1 must be instance of Field in RandomDecider.decide()');
-            }
-            return this.getRandomItem(Direction.all());
-        }
-    });
-
     var Bot2048 = Class.extend({
         INTERVAL : 100,
         __construct : function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
             // Setup AI.
-            this.decider = new QualityDecider(new EmptyChainQualityStrategy());
+            this.decider = new QualityDecider(new LocusChainQualityStrategy());
         },
         turn : function () {
             var field = this.fieldReader.read();
