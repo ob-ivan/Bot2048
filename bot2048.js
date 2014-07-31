@@ -132,20 +132,16 @@ var Bot2048 = (function () {
         },
         j : function () {
             return this.j;
+        }
+    });
+
+    var ValuePoint = Point.extend({
+        __construct : function (i, j, v) {
+            this._super(i, j);
+            this.v = v;
         },
-        getAdjacent : function (direction) {
-            var i = this.i;
-            var j = this.j;
-            switch (direction) {
-                case Direction.DOWN : ++i; break;
-                case Direction.LEFT : --j; break;
-                case Direction.RIGHT: ++j; break;
-                case Direction.UP   : --i; break;
-            }
-            if (i < 0 || i >= SIZE || j < 0 || j >= SIZE) {
-                return null;
-            }
-            return new Point(i, j);
+        v : function () {
+            return this.v;
         }
     });
 
@@ -187,6 +183,15 @@ var Bot2048 = (function () {
                 }
             }
             return true;
+        },
+        forEach : function (step, init) {
+            var result = init;
+            for (var i = 0; i < this.SIZE; ++i) {
+                for (var j = 0; j < this.SIZE; ++j) {
+                    result = step(i, j, this.values[i][j], result);
+                }
+            }
+            return result;
         }
     });
 
@@ -207,6 +212,23 @@ var Bot2048 = (function () {
         },
         produce : function () {
             return new Field(this.values);
+        }
+    });
+
+    var Traverser = Class.extend({
+        getAdjacent : function (point, direction) {
+            var i = point.i();
+            var j = point.j();
+            switch (direction) {
+                case Direction.DOWN : ++i; break;
+                case Direction.LEFT : --j; break;
+                case Direction.RIGHT: ++j; break;
+                case Direction.UP   : --i; break;
+            }
+            if (i < 0 || i >= SIZE || j < 0 || j >= SIZE) {
+                return null;
+            }
+            return new Point(i, j);
         }
     });
 
@@ -336,20 +358,12 @@ var Bot2048 = (function () {
 
     var MaximumFinder = Class.extend({
         find : function (field) {
-            var max = 0;
-            var maxi = -1;
-            var maxj = -1;
-            for (var i = 0; i < SIZE; ++i) {
-                for (var j = 0; j < SIZE; ++j) {
-                    var value = field.getValue(i, j);
-                    if (value > max) {
-                        max = value;
-                        maxi = i;
-                        maxj = j;
-                    }
+            return field.forEach(function (i, j, v, max) {
+                if (v > max.v()) {
+                    max = new ValuePoint(i, j, v);
                 }
-            }
-            return new Point(maxi, maxj);
+                return max;
+            }, new ValuePoint(0, 0, 0));
         }
     });
 
@@ -361,7 +375,7 @@ var Bot2048 = (function () {
             return this.finder;
         },
         evaluate : function (field) {
-            return field.getValue(this.getFinder().find(field));
+            return this.getFinder().find(field).v();
         }
     });
 
@@ -372,6 +386,12 @@ var Bot2048 = (function () {
             }
             return this.finder;
         },
+        getTraverser : function () {
+            if (typeof this.traverser === 'undefined') {
+                this.traverser = new Traverser();
+            }
+            return this.traverser;
+        },
         evaluateRecursive : function (field, point, sum) {
             var max = 0;
             var pointValue = field.getValue(point);
@@ -379,7 +399,7 @@ var Bot2048 = (function () {
                 return sum + 1;
             }
             for (var directions = Direction.all(), i = 0; i < directions.length; ++i) {
-                var adjacent = point.getAdjacent(directions[i]);
+                var adjacent = this.getTraverser().getAdjacent(point, directions[i]);
                 if (! adjacent) {
                     continue;
                 }
@@ -397,7 +417,20 @@ var Bot2048 = (function () {
             return max;
         },
         evaluate : function (field) {
-            return this.evaluateRecursive(field, this.finder.find(field), 0);
+            return this.evaluateRecursive(field, this.getFinder().find(field), 0);
+        }
+    });
+
+    var EmptyChainQualityStrategy = ChainQualityStrategy.extend({
+        evaluateRecursive : function (field, point, sum) {
+            var max = this.getFinder().find(field).v();
+            var empty = field.forEach(function (i, j, v, n) {
+                if (! v) {
+                    ++n;
+                }
+                return n;
+            }, 0);
+            return this._super(field, point, sum) + max * empty;
         }
     });
 
@@ -464,7 +497,7 @@ var Bot2048 = (function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
             // Setup AI.
-            this.decider = new QualityDecider(new MaximumQualityStrategy());
+            this.decider = new QualityDecider(new EmptyChainQualityStrategy());
         },
         turn : function () {
             var field = this.fieldReader.read();
@@ -494,4 +527,4 @@ var Bot2048 = (function () {
 })();
 
 var bot = new Bot2048();
-bot.test();
+bot.start();
