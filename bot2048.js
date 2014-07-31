@@ -447,6 +447,13 @@ var Bot2048 = (function () {
         }
     });
 
+    /**
+     *  interface Decider {
+     *      // Returns null if no turns can be made.
+     *      Direction? decide(Field field);
+     *  }
+    **/
+
     var QualityDecider = Class.extend({
         __construct : function (qualityStrategy) {
             this.qualityStrategy = qualityStrategy;
@@ -502,7 +509,7 @@ var Bot2048 = (function () {
         turn : function () {
             var field = this.fieldReader.read();
             var direction = this.decider.decide(field);
-            if (! direction) {
+            if (direction === null) {
                 return false;
             }
             this.keyboard.press(direction);
