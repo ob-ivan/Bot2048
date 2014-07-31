@@ -1,3 +1,4 @@
+
 var Bot2048 = (function () {
 
     const SIZE = 4;
@@ -163,6 +164,14 @@ var Bot2048 = (function () {
         LEFT  : 1,
         RIGHT : 2,
         UP    : 3,
+        all   : function () {
+            return [
+                this.DOWN,
+                this.LEFT,
+                this.RIGHT,
+                this.UP
+            ];
+        }
     };
 
     var Mutator = Class.extend({
@@ -242,13 +251,18 @@ var Bot2048 = (function () {
         makePositionSelector : function (i, j) {
             return ['.tile-container .tile-position', j + 1, i + 1].join('-');
         },
+        getPosition : function (i, j) {
+            var merged = document.querySelector(this.makePositionSelector(i, j) + '.tile-merged');
+            if (merged) {
+                return merged;
+            }
+            return document.querySelector(this.makePositionSelector(i, j));
+        },
         read : function () {
             var builder = new FieldBuilder();
             for (var i = 0; i < 4; ++i) {
                 for (var j = 0; j < 4; ++j) {
-                    var position = document.querySelector(
-                        this.makePositionSelector(i, j)
-                    );
+                    var position = this.getPosition(i, j);
                     if (position) {
                         builder.setValue(i, j, parseInt(position.textContent));
                     }
@@ -284,15 +298,76 @@ var Bot2048 = (function () {
 
     ////////////////////////////////// Aritificial intelligence //////////////////////////////////
 
-    var RandomDecider = Class.extend({
-        __construct : function () {
-            this.directions = [
-                Direction.DOWN,
-                Direction.LEFT,
-                Direction.RIGHT,
-                Direction.UP
-            ];
+    var MaximumQualityStrategy = Class.extend({
+        evaluate : function (field) {
+            var max = 0;
+            for (var i = 0; i < SIZE; ++i) {
+                for (var j = 0; j < SIZE; ++j) {
+                    var value = field.getValue(i, j);
+                    if (value > max) {
+                        max = value;
+                    }
+                }
+            }
+            return max;
+        }
+    });
+
+    var QualityMove = Class.extend({
+        __construct : function (direction, quality) {
+            this.direction = direction;
+            this.quality = quality;
         },
+        getDirection : function () {
+            return this.direction;
+        },
+        getQuality : function () {
+            return this.quality;
+        }
+    });
+
+    var QualityDecider = Class.extend({
+        __construct : function (qualityStrategy) {
+            this.qualityStrategy = qualityStrategy;
+        },
+        getMutator : function () {
+            if (typeof this.mutator === 'undefined') {
+                this.mutator = new Mutator();
+            }
+            return this.mutator;
+        },
+        qualitySort : function (m1, m2) {
+            return m1.getQuality() - m2.getQuality();
+        },
+        decide : function (field) {
+            var moves = [];
+            var mutator = this.getMutator();
+            for (var directions = Direction.all(), i = 0; i < directions.length; ++i) {
+                var candidate = mutator.move(field, directions[i]);
+
+                console.log('QualityDecider.decide: i = ' + i);
+                console.log('QualityDecider.decide: directions[i] = ' + directions[i]);
+                console.log('QualityDecider.decide: candidate.getCode() = ' + candidate.getCode());
+                console.log('QualityDecider.decide: candidate.equals(field) = ' + candidate.equals(field));
+
+                if (! candidate.equals(field)) {
+                    var value = this.qualityStrategy.evaluate(candidate);
+
+                    console.log('QualityDecider.decide: value', value);
+
+                    moves.push(new QualityMove(directions[i], value));
+                }
+            }
+            moves.sort(this.qualitySort);
+            var bestMove = moves.pop();
+            if (! bestMove) {
+                return;
+            }
+            return bestMove.getDirection();
+        }
+    });
+
+    var RandomDecider = Class.extend({
         getRandomItem : function (array) {
             return array[Math.floor(array.length * Math.random())];
         },
@@ -300,7 +375,7 @@ var Bot2048 = (function () {
             if (! field instanceof Field) {
                 throw new TypeError('Argument 1 must be instance of Field in RandomDecider.decide()');
             }
-            return this.getRandomItem(this.directions);
+            return this.getRandomItem(Direction.all());
         }
     });
 
@@ -309,11 +384,15 @@ var Bot2048 = (function () {
         __construct : function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
-            this.decider = new RandomDecider();
+            // Setup AI.
+            this.decider = new QualityDecider(new MaximumQualityStrategy());
         },
         turn : function () {
             var field = this.fieldReader.read();
             var direction = this.decider.decide(field);
+            if (! direction) {
+                return false;
+            }
             this.keyboard.press(direction);
             return ! document.getElementsByClassName('game-over').length;
         },
@@ -327,7 +406,13 @@ var Bot2048 = (function () {
         },
         stop : function () {
             window.clearTimeout(this.timeout);
+        },
+        test : function () {
+            this.turn();
         }
     });
     return Bot2048;
 })();
+
+var bot = new Bot2048();
+bot.test();
