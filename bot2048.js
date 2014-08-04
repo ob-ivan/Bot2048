@@ -1,4 +1,3 @@
-
 var Bot2048 = (function () {
 
     const SIZE = 4;
@@ -470,6 +469,17 @@ var Bot2048 = (function () {
             return this._super(field, point, sum) - this.getLocusPenalty(field);
         }
     });
+    
+    var SnakeQualityStrategy = LocusChainQualityStrategy.extend({
+        getSnakeBonus : function (field) {
+            return field.forEach(function (i, j, v, b) {
+                return b + v * i;
+            }, 0);
+        },
+        evaluate : function (field) {
+            return this._super(field) + this.getSnakeBonus(field);
+        }
+    })
 
     var QualityMove = Class.extend({
         __construct : function (direction, quality) {
@@ -541,7 +551,7 @@ var Bot2048 = (function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
             // Setup AI.
-            this.decider = new QualityDecider(new LocusChainQualityStrategy());
+            this.decider = new QualityDecider(new SnakeQualityStrategy());
         },
         turn : function () {
             var field = this.fieldReader.read();
