@@ -570,7 +570,7 @@ var Bot2048 = (function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
             // Setup AI.
-            this.decider = new QualityDecider(new SnakeQualityStrategy());
+            this.decider = new QualityDecider(new WiseSnakeQualityStrategy());
         },
         turn : function () {
             var field = this.fieldReader.read();
