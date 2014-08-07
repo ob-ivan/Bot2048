@@ -191,7 +191,10 @@ var Bot2048 = (function () {
                 }
             }
             return result;
-        }
+        },
+      inspect : function () {
+        return this.values;
+      }
     });
 
     var FieldBuilder = Class.extend({
@@ -483,7 +486,7 @@ var Bot2048 = (function () {
     
     var WiseSnakeQualityStrategy = SnakeQualityStrategy.extend({
         evaluate : function (field) {
-            // Situation where rows have got n,3,4,4 filled cells in top-down order should be avoided at all costs.
+            // Situation where rows have got 0,3,4,4 filled cells in top-down order should be avoided at all costs.
             var counts = field.forEach(function (i, j, v, counts) {
                 if (typeof counts[j] === 'undefined') {
                     counts[j] = 0;
@@ -493,7 +496,7 @@ var Bot2048 = (function () {
                 }
                 return counts;
             }, []);
-            if (counts[1] === 3 && counts[2] === 4 && counts[3] === 4) {
+            if (counts.join('') === '0344') {
                 return 0;
             }
             return this._super(field);
