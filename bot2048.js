@@ -484,7 +484,7 @@ var Bot2048 = (function () {
     var WiseSnakeQualityStrategy = SnakeQualityStrategy.extend({
         evaluate : function (field) {
             // Situation where rows have got n,3,4,4 filled cells in top-down order should be avoided at all costs.
-            field.forEach(function (i, j, v, counts) {
+            var counts = field.forEach(function (i, j, v, counts) {
                 if (typeof counts[i] === 'undefined') {
                     counts[i] = 0;
                 }
