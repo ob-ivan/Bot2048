@@ -485,11 +485,11 @@ var Bot2048 = (function () {
         evaluate : function (field) {
             // Situation where rows have got n,3,4,4 filled cells in top-down order should be avoided at all costs.
             var counts = field.forEach(function (i, j, v, counts) {
-                if (typeof counts[i] === 'undefined') {
-                    counts[i] = 0;
+                if (typeof counts[j] === 'undefined') {
+                    counts[j] = 0;
                 }
                 if (v > 0) {
-                    counts[i]++;
+                    counts[j]++;
                 }
                 return counts;
             }, []);
