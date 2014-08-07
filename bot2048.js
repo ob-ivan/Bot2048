@@ -493,7 +493,7 @@ var Bot2048 = (function () {
                 }
                 return counts;
             }, []);
-            if (counts[1] === 3 && counts[2] === 4 && coutns[3] === 4) {
+            if (counts[1] === 3 && counts[2] === 4 && counts[3] === 4) {
                 return 0;
             }
             return this._super(field);
