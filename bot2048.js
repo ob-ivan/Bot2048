@@ -568,7 +568,7 @@ var Bot2048 = (function () {
     });
 
     /**
-     *  interface Stopped {
+     *  interface Stopper {
      *      // Return true iff it's time to stop.
      *      boolean stop();
      *  }
@@ -595,7 +595,7 @@ var Bot2048 = (function () {
                 return false;
             }
             this.keyboard.press(direction);
-            return ! document.getElementsByClassName('game-over').length;
+            return ! this.stopper.stop();
         },
         run : function (interval) {
             this.timeout = window.setTimeout(this.step.bind(this), interval);
@@ -604,7 +604,7 @@ var Bot2048 = (function () {
             if (this.stopped) {
                 return;
             }
-            if (this.turn() && ! this.stopper.stop()) {
+            if (this.turn()) {
                 this.run(this.INTERVAL);
             }
         },
