@@ -472,7 +472,7 @@ var Bot2048 = (function () {
             return this._super(field, point, sum) - this.getLocusPenalty(field);
         }
     });
-    
+
     var SnakeQualityStrategy = LocusChainQualityStrategy.extend({
         getSnakeBonus : function (field) {
             return field.forEach(function (i, j, v, b) {
@@ -483,7 +483,7 @@ var Bot2048 = (function () {
             return this._super(field) + this.getSnakeBonus(field);
         }
     });
-    
+
     var WiseSnakeQualityStrategy = SnakeQualityStrategy.extend({
         evaluate : function (field) {
             // Situation where rows have got 0,3,4,4 filled cells in top-down order should be avoided at all costs.
@@ -567,13 +567,26 @@ var Bot2048 = (function () {
         }
     });
 
+    /**
+     *  interface Stopped {
+     *      // Return true iff it's time to stop.
+     *      boolean stop();
+     *  }
+    **/
+
+    var GameOverStopper = Class.extend({
+        stop : function () {
+            return document.getElementsByClassName('game-over').length;
+        }
+    });
+
     var Bot2048 = Class.extend({
         INTERVAL : 100,
         __construct : function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
-            // Setup AI.
             this.decider = new QualityDecider(new WiseSnakeQualityStrategy());
+            this.stopper = new GameOverStopper();
         },
         turn : function () {
             var field = this.fieldReader.read();
@@ -584,19 +597,24 @@ var Bot2048 = (function () {
             this.keyboard.press(direction);
             return ! document.getElementsByClassName('game-over').length;
         },
+        run : function (interval) {
+            this.timeout = window.setTimeout(this.step.bind(this), interval);
+        },
+        step : function step() {
+            if (this.stopped) {
+                return;
+            }
+            if (this.turn() && ! this.stopper.stop()) {
+                this.run(this.INTERVAL);
+            }
+        },
         start : function () {
-            var self = this;
-            this.timeout = window.setTimeout(function recursion() {
-                if (self.turn()) {
-                    this.timeout = window.setTimeout(recursion, self.INTERVAL);
-                }
-            }, 0);
+            this.stopped = false;
+            this.run(0);
         },
         stop : function () {
             window.clearTimeout(this.timeout);
-        },
-        test : function () {
-            this.turn();
+            this.stopped = true;
         }
     });
     return Bot2048;
