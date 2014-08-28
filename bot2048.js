@@ -106,19 +106,33 @@ var Bot2048 = (function () {
     });
     var codeConverter = new CodeConverter();
 
-    var Direction = {
-        DOWN  : 0,
-        LEFT  : 1,
-        RIGHT : 2,
-        UP    : 3,
-        all   : function () {
-            return [
-                this.DOWN,
-                this.LEFT,
-                this.RIGHT,
-                this.UP
-            ];
+    var Direction = Class.extend({
+        __construct : function (value) {
+            this.value = value;
+        },
+        getValue : function () {
+            return this.value;
+        },
+        toString : function () {
+            switch (this.value) {
+                case Direction.DOWN  : return 'down';
+                case Direction.LEFT  : return 'left';
+                case Direction.RIGHT : return 'right';
+                case Direction.UP    : return 'up';
+            }
         }
+    });
+    Direction.DOWN  = 0;
+    Direction.LEFT  = 1;
+    Direction.RIGHT = 2;
+    Direction.UP    = 3;
+    Direction.all = function () {
+        return [
+            new Direction(this.DOWN),
+            new Direction(this.LEFT),
+            new Direction(this.RIGHT),
+            new Direction(this.UP)
+        ];
     };
 
     var Point = Class.extend({
@@ -244,7 +258,7 @@ var Bot2048 = (function () {
         getAdjacent : function (point, direction) {
             var i = point.i();
             var j = point.j();
-            switch (direction) {
+            switch (direction.getValue()) {
                 case Direction.DOWN : ++i; break;
                 case Direction.LEFT : --j; break;
                 case Direction.RIGHT: ++j; break;
@@ -319,7 +333,7 @@ var Bot2048 = (function () {
             return builder.produce();
         },
         move : function (field, direction) {
-            switch (direction) {
+            switch (direction.getValue()) {
                 case Direction.DOWN  : return this.transpose(this.flipHorizontal(this.moveLeft(this.flipHorizontal(this.transpose(field)))));
                 case Direction.RIGHT : return this.flipHorizontal(this.moveLeft(this.flipHorizontal(field)));
                 case Direction.LEFT  : return this.moveLeft(field);
@@ -358,7 +372,7 @@ var Bot2048 = (function () {
     var Keyboard = Class.extend({
         keyCodes : {},
         getKeyCodeRaw : function (direction) {
-            switch (direction) {
+            switch (direction.getValue()) {
                 case Direction.DOWN : return 40;
                 case Direction.LEFT : return 37;
                 case Direction.RIGHT: return 39;
@@ -516,6 +530,34 @@ var Bot2048 = (function () {
         }
     });
 
+    var BestMoveFinder = Class.extend({
+        __construct : function (qualityStrategy) {
+            this.qualityStrategy = qualityStrategy;
+        },
+        getMutator : function () {
+            if (typeof this.mutator === 'undefined') {
+                this.mutator = new Mutator();
+            }
+            return this.mutator;
+        },
+        qualitySort : function (m1, m2) {
+            return m1.getQuality() - m2.getQuality();
+        },
+        find : function (field) {
+            var moves = [];
+            var mutator = this.getMutator();
+            for (var directions = Direction.all(), i = 0; i < directions.length; ++i) {
+                var candidate = mutator.move(field, directions[i]);
+                if (! candidate.equals(field)) {
+                    var value = this.qualityStrategy.evaluate(candidate);
+                    moves.push(new QualityMove(directions[i], value));
+                }
+            }
+            moves.sort(this.qualitySort);
+            return moves.pop();
+        }
+    });
+
     /**
      *  interface Decider {
      *      // Return null iff no turns can be made.
@@ -538,29 +580,15 @@ var Bot2048 = (function () {
     var QualityDecider = Class.extend({
         __construct : function (qualityStrategy) {
             this.qualityStrategy = qualityStrategy;
-        },
-        getMutator : function () {
-            if (typeof this.mutator === 'undefined') {
-                this.mutator = new Mutator();
-            }
-            return this.mutator;
-        },
-        qualitySort : function (m1, m2) {
-            return m1.getQuality() - m2.getQuality();
+            this.finder = new BestMoveFinder(qualityStrategy);
         },
         decide : function (field) {
-            var moves = [];
-            var mutator = this.getMutator();
-            for (var directions = Direction.all(), i = 0; i < directions.length; ++i) {
-                var candidate = mutator.move(field, directions[i]);
-                if (! candidate.equals(field)) {
-                    var value = this.qualityStrategy.evaluate(candidate);
-                    moves.push(new QualityMove(directions[i], value));
-                }
-            }
-            moves.sort(this.qualitySort);
-            var bestMove = moves.pop();
+            var currentQuality = this.qualityStrategy.evaluate(field);
+            var bestMove = this.finder.find(field);
             if (! bestMove) {
+                return;
+            }
+            if (bestMove.getQuality() < currentQuality / 2) {
                 return;
             }
             return bestMove.getDirection();
@@ -585,13 +613,13 @@ var Bot2048 = (function () {
         __construct : function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
-            this.decider = new QualityDecider(new WiseSnakeQualityStrategy());
+            this.decider = new QualityDecider(new SnakeQualityStrategy());
             this.stopper = new GameOverStopper();
         },
         turn : function () {
             var field = this.fieldReader.read();
             var direction = this.decider.decide(field);
-            if (direction === null) {
+            if (! direction) {
                 return false;
             }
             this.keyboard.press(direction);
