@@ -604,7 +604,8 @@ var Bot2048 = (function () {
 
     var GameOverStopper = Class.extend({
         stop : function () {
-            return document.getElementsByClassName('game-over').length;
+            return document.getElementsByClassName('game-over').length ||
+                document.getElementsByClassName('game-won').length;
         }
     });
 
