@@ -437,6 +437,46 @@ var Bot2048 = (function () {
             return builder.produce();
         }
     });
+    
+    var CachingMutator = Class.extend({
+        __construct : function () {
+            this.mutator = new Mutator();
+            var factory = new FieldRegistryFactory();
+            this.moveLeftRegistry = factory.produce();
+            this.transposeRegistry = factory.produce();
+            this.flipVerticalRegistry = factory.produce();
+            this.flipHorizontalRegistry = factory.produce();
+            this.moveRegistry = new Registry();
+            this.opponentRegistry = new Registry();
+        },
+        moveLeft : function (field) {
+            return this.moveLeftRegistry.get(field, this.mutator.moveLeft.bind(this.mutator, field));
+        },
+        transpose : function (field) {
+            return this.transposeRegistry.get(field, this.mutator.transpose.bind(this.mutator, field));
+        },
+        flipVertical : function (field) {
+            return this.flipVerticalRegistry.get(field, this.mutator.flipVertical.bind(this.mutator, field));
+        },
+        flipHorizontal : function (field) {
+            return this.flipHorizontalRegistry.get(field, this.mutator.flipHorizontal.bind(this.mutator, field));
+        },
+        move : function (field, direction) {
+            return this.moveRegistry.get(
+                field.getCode() + direction.getValue(),
+                this.mutator.move.bind(this.mutator, field, direction)
+            );
+        },
+        getOpponentMoveCode : function (opponentMove) {
+            return [opponentMove.i(), opponentMove.j(), opponentMove.v()].join('-');
+        },
+        applyOpponentMove : function (field, opponentMove) {
+            return this.opponentRegistry.get(
+                field.getCode() + this.getOpponentMoveCode(opponentMove),
+                this.mutator.applyOpponentMove.bind(this.mutator, field, opponentMove)
+            );
+        }
+    });
 
     var OpponentMoveIterator = Class.extend({
         iterate : function (field) {
@@ -803,10 +843,10 @@ var Bot2048 = (function () {
     var QualityDecider = Class.extend({
         __construct : function (qualityStrategy, finderFactory) {
             this.qualityStrategy = qualityStrategy;
-            countLogger.log('QualityDecider.__construct: new Mutator');
+            countLogger.log('QualityDecider.__construct: new CachingMutator');
             countLogger.log('QualityDecider.__construct: new QualitySorter');
             countLogger.log('QualityDecider.__construct: new FinderContext');
-            this.finder = finderFactory.produce(new FinderContext(qualityStrategy, new Mutator(), new QualitySorter()));
+            this.finder = finderFactory.produce(new FinderContext(qualityStrategy, new CachingMutator(), new QualitySorter()));
         },
         decide : function (field) {
             var currentQuality = this.qualityStrategy.evaluate(field);
@@ -883,3 +923,4 @@ bot.start();
 window.setTimeout(function () {
     bot.stop();
 }, 500);
+
