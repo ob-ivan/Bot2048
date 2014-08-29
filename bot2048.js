@@ -639,6 +639,9 @@ var Bot2048 = (function () {
             this.finder = finder;
         },
         getFinder : function () {
+            if (typeof this.finder === 'undefined') {
+                this.finder = new MaximumFinder(new ValuePointRegistry());
+            }
             return this.finder;
         },
         getTraverser : function () {
@@ -903,7 +906,7 @@ var Bot2048 = (function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
             this.decider = new QualityDecider(
-                new GravityQualityStrategy(),
+                new GravityQualityStrategy(new MaximumFinder()),
                 new BestMoveFinderFactory()
             );
             this.stopper = new GameOverStopper();
