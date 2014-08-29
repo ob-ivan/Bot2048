@@ -79,18 +79,21 @@ var Bot2048 = (function () {
     })();
 
     var CountLogger = Class.extend({
-        __construct : function () {
+        __construct : function (enabled) {
             this.map = {};
+            this.enabled = enabled;
         },
         log : function (label) {
             if (typeof this.map[label] === 'undefined') {
                 this.map[label] = 0;
             }
             this.map[label]++;
-            console.log(label, this.map[label]);
+            if (this.enabled) {
+                console.log(label, this.map[label]);
+            }
         }
     });
-    var countLogger = new CountLogger();
+    var countLogger = new CountLogger(false);
     
     var Registry = Class.extend({
         __construct : function () {
