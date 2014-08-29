@@ -362,6 +362,7 @@ var Bot2048 = (function () {
                     a.push(new ValuePoint(i, j, 1));
                     a.push(new ValuePoint(i, j, 2));
                 }
+                return a;
             }, []);
         }
     });
@@ -613,7 +614,8 @@ var Bot2048 = (function () {
     var DeepMoveFinder = Class.extend({
         __construct : function (context) {
             this.bestMoveFinder = new BestMoveFinder(context);
-            this.mutator = this.context.getMutator();
+            this.mutator = context.getMutator();
+            this.qualitySorter = context.getQualitySorter();
             this.opponentMoveIterator = new OpponentMoveIterator();
         },
         qualitySort : function (m1, m2) {
@@ -640,7 +642,7 @@ var Bot2048 = (function () {
                     moves.push(new QualityMove(directions[d], worstQuality));
                 }
             }
-            this.context.getQualitySorter().sort(moves);
+            this.qualitySorter.sort(moves);
             return moves.pop();
         }
     });
