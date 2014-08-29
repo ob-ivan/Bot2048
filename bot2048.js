@@ -537,34 +537,89 @@ var Bot2048 = (function () {
 
     ////////////////////////////////// Aritificial intelligence //////////////////////////////////
 
-    var MaximumFinder = Class.extend({
+    var ValuePointRegistry = Class.extend({
         __construct : function () {
-            this.fieldRegistry = new FieldRegistryFactory().produce();
-            this.pointRegistry = new Registry();
+            this.registry = new Registry();
         },
-        pointFactory : function (i, j, v) {
+        factory : function (i, j, v) {
             return new ValuePoint(i, j, v);
         },
-        getPoint : function (i, j, v) {
-            return this.pointRegistry.get(
+        get : function (i, j, v) {
+            return this.registry.get(
                 [i, j, v].join('-'),
-                this.pointFactory.bind(this, i, j, v)
+                this.factory.bind(this, i, j, v)
             );
+        }
+    });
+    
+    var MaximumFinder = Class.extend({
+        __construct : function (valuePointRegistry) {
+            this.fieldRegistry = new FieldRegistryFactory().produce();
+            this.valuePointRegistry = valuePointRegistry;
+        },
+        getPoint : function (i, j, v) {
+            return this.valuePointRegistry.get(i, j, v);
+        },
+        fallbackStep : function (i, j, v, max) {
+            if (v > max.v()) {
+                max = this.getPoint(i, j, v);
+            }
+            return max;
         },
         fallback : function (field) {
-            var self = this;
-            return field.forEach(function (i, j, v, max) {
-                if (v > max.v()) {
-                    max = self.getPoint(i, j, v);
-                }
-                return max;
-            }, this.getPoint(0, 0, 0));
+            return field.forEach(fallbackStep.bind(this), this.getPoint(0, 0, 0));
         },
         find : function (field) {
             return this.fieldRegistry.get(field, this.fallback.bind(this, field));
         }
     });
+    
+    var MaximumCollection = Class.extend({
+        __construct : function () {
+            this.maximums = [];
+            this.value = 0;
+        },
+        add : function (i, j, v) {
+            var diff = v - this.value;
+            var point = this.getPoint(i, j, v);
+            if (diff > 0) {
+                this.maximums = [point];
+                this.value = v;
+            } else if (! diff) {
+                this.maximums.push(point);
+            }
+            return this;
+        },
+        getMaximums : function () {
+            return this.maximums;
+        }
+    });
+    
+    var MaximumCollectionFinder = MaximumFinder.extend({
+        fallbackStep : function (i, j, v, max) {
+            max.add(
+            if (v > max.v()) {
+                max = this.getPoint(i, j, v);
+            }
+            return max;
+        },
+        fallback : function (field) {
+            return field.forEach(fallbackStep.bind(this), new MaximumCollection());
+        },
+    });
 
+    var ChainsFinder = Class.extend({
+        __construct : function (maximumCollectionFinder) {
+            this.maximumCollectionFinder = maximumCollectionFinder;
+        },
+        find : function (field) {
+            var maximumCollection = this.maximumCollectionFinder.find(field);
+            for (var m = 0; m < maximumCollection.length; ++m) {
+                // TODO
+            }
+        }
+    });
+    
     /**
      *  interface QualityStrategy {
      *      integer evaluate(Field field);
@@ -574,7 +629,7 @@ var Bot2048 = (function () {
     var MaximumQualityStrategy = Class.extend({
         getFinder : function () {
             if (typeof this.finder === 'undefined') {
-                this.finder = new MaximumFinder();
+                this.finder = new MaximumFinder(new ValuePointRegistry());
             }
             return this.finder;
         },
@@ -584,10 +639,10 @@ var Bot2048 = (function () {
     });
 
     var ChainQualityStrategy = Class.extend({
+        __construct : function (finder) {
+            this.finder = finder;
+        },
         getFinder : function () {
-            if (typeof this.finder === 'undefined') {
-                this.finder = new MaximumFinder();
-            }
             return this.finder;
         },
         getTraverser : function () {
@@ -652,7 +707,7 @@ var Bot2048 = (function () {
         }
     });
 
-    var SnakeQualityStrategy = LocusChainQualityStrategy.extend({
+    var GravityQualityStrategy = LocusChainQualityStrategy.extend({
         getSnakeBonus : function (field) {
             return field.forEach(function (i, j, v, b) {
                 return b + v * i;
@@ -663,25 +718,21 @@ var Bot2048 = (function () {
         }
     });
 
-    var WiseSnakeQualityStrategy = SnakeQualityStrategy.extend({
+    var SnakeQualityStrategy = Class.extend({
         evaluate : function (field) {
-            // Situation where rows have got 0,3,4,4 filled cells in top-down order should be avoided at all costs.
-            var counts = field.forEach(function (i, j, v, counts) {
-                if (typeof counts[j] === 'undefined') {
-                    counts[j] = 0;
+            var quality = 0;
+            var multiplier = 1;
+            for (var i = SIZE - 1; i < SIZE; ++i) {
+                var imod2 = i % 2;
+                for (var j = 0; j < SIZE; ++j) {
+                    quality += field.getValue(i, imod2 ? j : 3 - j) * multiplier;
+                    multiplier /= 1.5;
                 }
-                if (v > 0) {
-                    counts[j]++;
-                }
-                return counts;
-            }, []);
-            if (counts.join('') === '0344') {
-                return 0;
             }
-            return this._super(field);
+            return quality;
         }
     });
-
+    
     var QualityMove = Class.extend({
         __construct : function (direction, quality) {
             this.direction = direction;
@@ -704,7 +755,7 @@ var Bot2048 = (function () {
         }
     });
     
-    var FinderContext = Class.extend({
+    var BestMoveFinderContext = Class.extend({
         __construct : function (qualityStrategy, mutator, qualitySorter) {
             this.qualityStrategy = qualityStrategy;
             this.mutator = mutator;
@@ -783,7 +834,7 @@ var Bot2048 = (function () {
     
     /**
      *  interface FinderFactory {
-     *      MoveFinder produce(FinderContext context);
+     *      MoveFinder produce(BestMoveFinderContext context);
      *  }
     **/
 
@@ -821,7 +872,7 @@ var Bot2048 = (function () {
     var QualityDecider = Class.extend({
         __construct : function (qualityStrategy, finderFactory) {
             this.qualityStrategy = qualityStrategy;
-            this.finder = finderFactory.produce(new FinderContext(qualityStrategy, new CachingMutator(), new QualitySorter()));
+            this.finder = finderFactory.produce(new BestMoveFinderContext(qualityStrategy, new CachingMutator(), new QualitySorter()));
         },
         decide : function (field) {
             var currentQuality = this.qualityStrategy.evaluate(field);
@@ -856,8 +907,8 @@ var Bot2048 = (function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
             this.decider = new QualityDecider(
-                new SnakeQualityStrategy(new MaximumFinder()),
-                new DeepMoveFinderFactory()
+                new SnakeQualityStrategy(),
+                new BestMoveFinderFactory()
             );
             this.stopper = new GameOverStopper();
         },
@@ -897,5 +948,5 @@ var bot = new Bot2048();
 bot.start();
 window.setTimeout(function () {
     bot.stop();
-}, 5000);
+}, 60000);
 
