@@ -231,6 +231,22 @@ var Bot2048 = (function () {
         }
     });
 
+    var FieldRegistry = Class.extend({
+        __construct : function () {
+            this.registry = {};
+        },
+        set : function (field, value) {
+            this.registry[field.getCode()] = value;
+        },
+        get : function (field, fallback) {
+            var code = field.getCode();
+            if (typeof this.registry[code] === 'undefined') {
+                this.registry[code] = fallback();
+            }
+            return this.registry[code];
+        }
+    });
+    
     var Locus = {
         CORNER : 0,
         SIDE   : 1,
@@ -421,13 +437,19 @@ var Bot2048 = (function () {
     ////////////////////////////////// Aritificial intelligence //////////////////////////////////
 
     var MaximumFinder = Class.extend({
-        find : function (field) {
-            return field.forEach(function (i, j, v, max) {
+        __construct : function () {
+            this.registry = new FieldRegistry();
+        },
+        fallback : function () {
+            return this.forEach(function (i, j, v, max) {
                 if (v > max.v()) {
                     max = new ValuePoint(i, j, v);
                 }
                 return max;
             }, new ValuePoint(0, 0, 0));
+        },
+        find : function (field) {
+            return this.registry.get(field, this.fallback.bind(field));
         }
     });
 
@@ -722,7 +744,7 @@ var Bot2048 = (function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
             this.decider = new QualityDecider(
-                new SnakeQualityStrategy(),
+                new SnakeQualityStrategy(new MaximumFinder()),
                 new DeepMoveFinderFactory()
             );
             this.stopper = new GameOverStopper();
