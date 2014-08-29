@@ -597,11 +597,7 @@ var Bot2048 = (function () {
     
     var MaximumCollectionFinder = MaximumFinder.extend({
         fallbackStep : function (i, j, v, max) {
-            max.add(
-            if (v > max.v()) {
-                max = this.getPoint(i, j, v);
-            }
-            return max;
+            return max.add(i, j, v);
         },
         fallback : function (field) {
             return field.forEach(fallbackStep.bind(this), new MaximumCollection());
@@ -907,7 +903,7 @@ var Bot2048 = (function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
             this.decider = new QualityDecider(
-                new SnakeQualityStrategy(),
+                new GravityQualityStrategy(),
                 new BestMoveFinderFactory()
             );
             this.stopper = new GameOverStopper();
