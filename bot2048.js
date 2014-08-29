@@ -560,6 +560,32 @@ var Bot2048 = (function () {
         }
     });
 
+    var QualitySorter = Class.extend({
+        compare : function (m1, m2) {
+            return m1.getQuality() - m2.getQuality();
+        },
+        sort : function (qualityMoves) {
+            qualityMoves.sort(this.compare)
+        }
+    });
+    
+    var FinderContext = Class.extend({
+        __construct : function (qualityStrategy, mutator, qualitySorter) {
+            this.qualityStrategy = qualityStrategy;
+            this.mutator = mutator;
+            this.qualitySorter = qualitySorter;
+        },
+        getQualityStrategy : function () {
+            return this.qualityStrategy;
+        },
+        getMutator : function () {
+            return this.mutator;
+        },
+        getQualitySorter : function () {
+            return this.qualitySorter;
+        }
+    });
+    
     /**
      *  interface MoveFinder {
      *      QualityMove find(Field field);
@@ -567,31 +593,27 @@ var Bot2048 = (function () {
     **/
     
     var BestMoveFinder = Class.extend({
-        __construct : function (qualityStrategy, mutator) {
-            this.qualityStrategy = qualityStrategy;
-            this.mutator = mutator;
-        },
-        qualitySort : function (m1, m2) {
-            return m1.getQuality() - m2.getQuality();
+        __construct : function (context) {
+            this.context = context;
         },
         find : function (field) {
             var moves = [];
             for (var directions = Direction.all(), d = 0; d < directions.length; ++d) {
-                var candidate = this.mutator.move(field, directions[d]);
+                var candidate = this.context.getMutator().move(field, directions[d]);
                 if (! candidate.equals(field)) {
-                    var value = this.qualityStrategy.evaluate(candidate);
+                    var value = this.context.getQualityStrategy().evaluate(candidate);
                     moves.push(new QualityMove(directions[d], value));
                 }
             }
-            moves.sort(this.qualitySort);
+            this.context.getQualitySorter().sort(moves);
             return moves.pop();
         }
     });
     
     var DeepMoveFinder = Class.extend({
-        __construct : function (qualityStrategy, mutator) {
-            this.bestMoveFinder = new BestMoveFinder(qualityStrategy, mutator);
-            this.mutator = mutator;
+        __construct : function (context) {
+            this.bestMoveFinder = new BestMoveFinder(context);
+            this.mutator = this.context.getMutator();
             this.opponentMoveIterator = new OpponentMoveIterator();
         },
         qualitySort : function (m1, m2) {
@@ -618,26 +640,26 @@ var Bot2048 = (function () {
                     moves.push(new QualityMove(directions[d], worstQuality));
                 }
             }
-            moves.sort(this.qualitySort);
+            this.context.getQualitySorter().sort(moves);
             return moves.pop();
         }
     });
     
     /**
      *  interface FinderFactory {
-     *      MoveFinder produce(QualityStrategy qualityStragegy, Mutator mutator);
+     *      MoveFinder produce(FinderContext context);
      *  }
     **/
 
     var BestMoveFinderFactory = Class.extend({
-        produce : function (qualityStragegy, mutator) {
-            return new BestMoveFinder(qualityStrategy, mutator);
+        produce : function (context) {
+            return new BestMoveFinder(context);
         }
     });
     
     var DeepMoveFinderFactory = Class.extend({
-        produce : function (qualityStragegy, mutator) {
-            return new DeepMoveFinder(qualityStrategy, mutator);
+        produce : function (context) {
+            return new DeepMoveFinder(context);
         }
     });
     
@@ -663,7 +685,7 @@ var Bot2048 = (function () {
     var QualityDecider = Class.extend({
         __construct : function (qualityStrategy, finderFactory) {
             this.qualityStrategy = qualityStrategy;
-            this.finder = finderFactory.produce(qualityStrategy, new Mutator());
+            this.finder = finderFactory.produce(new FinderContext(qualityStrategy, new Mutator(), new QualitySorter()));
         },
         decide : function (field) {
             var currentQuality = this.qualityStrategy.evaluate(field);
