@@ -283,7 +283,6 @@ var Bot2048 = (function () {
             return this._public;
         },
         produce : function () {
-            countLogger.log('FieldBuilder.produce: new Field');
             return new Field(this.values);
         }
     });
@@ -339,7 +338,6 @@ var Bot2048 = (function () {
             if (i < 0 || i >= SIZE || j < 0 || j >= SIZE) {
                 return null;
             }
-            countLogger.log('Traverser._getAdjacentFallback: new Point');
             return new Point(i, j);
         },
         getAdjacent : function (point, direction) {
@@ -353,7 +351,6 @@ var Bot2048 = (function () {
     var Mutator = Class.extend({
         SIZE  : SIZE,
         moveLeft : function (field) {
-            countLogger.log('Mutator.moveLeft: new FieldBuilder');
             var builder = new FieldBuilder();
             for (var i = 0; i < this.SIZE; ++i) {
                 var r = 0;
@@ -386,7 +383,6 @@ var Bot2048 = (function () {
             return builder.produce();
         },
         transpose : function (field) {
-            countLogger.log('Mutator.transpose: new FieldBuilder');
             var builder = new FieldBuilder();
             for (var i = 0; i < this.SIZE; ++i) {
                 for (var j = 0; j < this.SIZE; ++j) {
@@ -396,7 +392,6 @@ var Bot2048 = (function () {
             return builder.produce();
         },
         flipVertical : function (field) {
-            countLogger.log('Mutator.flipVertical: new FieldBuilder');
             var builder = new FieldBuilder();
             for (var i = 0; i < this.SIZE; ++i) {
                 for (var j = 0; j < this.SIZE; ++j) {
@@ -407,7 +402,6 @@ var Bot2048 = (function () {
         },
         flipHorizontal : function (field) {
             var builder = new FieldBuilder();
-            countLogger.log('Mutator.flipHorizontal: new FieldBuilder');
             for (var i = 0; i < this.SIZE; ++i) {
                 for (var j = 0; j < this.SIZE; ++j) {
                     builder.setValue(i, j, field.getValue(i, this.SIZE - 1 - j));
@@ -424,7 +418,6 @@ var Bot2048 = (function () {
             }
         },
         applyOpponentMove : function (field, opponentMove) {
-            countLogger.log('Mutator.applyOpponentMove: new FieldBuilder');
             var builder = new FieldBuilder();
             for (var i = 0; i < this.SIZE; ++i) {
                 for (var j = 0; j < this.SIZE; ++j) {
@@ -483,9 +476,7 @@ var Bot2048 = (function () {
         iterate : function (field) {
             return field.forEach(function (i, j, v, a) {
                 if (v === 0) {
-                    countLogger.log('OpponentMoveIterator.iterate: new ValuePoint');
                     a.push(new ValuePoint(i, j, 1));
-                    countLogger.log('OpponentMoveIterator.iterate: new ValuePoint');
                     a.push(new ValuePoint(i, j, 2));
                 }
                 return a;
@@ -507,7 +498,6 @@ var Bot2048 = (function () {
             return document.querySelector(this.makePositionSelector(i, j));
         },
         read : function () {
-            countLogger.log('FieldReader.read: new FieldBuilder');
             var builder = new FieldBuilder();
             for (var i = 0; i < 4; ++i) {
                 for (var j = 0; j < 4; ++j) {
@@ -553,7 +543,6 @@ var Bot2048 = (function () {
             this.pointRegistry = new Registry();
         },
         pointFactory : function (i, j, v) {
-            countLogger.log('MaximumFinder.pointFactory: new ValuePoint');
             return new ValuePoint(i, j, v);
         },
         getPoint : function (i, j, v) {
@@ -585,7 +574,6 @@ var Bot2048 = (function () {
     var MaximumQualityStrategy = Class.extend({
         getFinder : function () {
             if (typeof this.finder === 'undefined') {
-                countLogger.log('MaximumQualityStrategy.getFinder: new MaximumFinder');
                 this.finder = new MaximumFinder();
             }
             return this.finder;
@@ -598,14 +586,12 @@ var Bot2048 = (function () {
     var ChainQualityStrategy = Class.extend({
         getFinder : function () {
             if (typeof this.finder === 'undefined') {
-                countLogger.log('ChainQualityStrategy.getFinder: new MaximumFinder');
                 this.finder = new MaximumFinder();
             }
             return this.finder;
         },
         getTraverser : function () {
             if (typeof this.traverser === 'undefined') {
-                countLogger.log('ChainQualityStrategy.getTraverser: new Traverser');
                 this.traverser = new Traverser();
             }
             return this.traverser;
@@ -751,7 +737,6 @@ var Bot2048 = (function () {
                 var candidate = this.context.getMutator().move(field, directions[d]);
                 if (! candidate.equals(field)) {
                     var value = this.context.getQualityStrategy().evaluate(candidate);
-                    countLogger.log('BestMoveFinder.find: new QualityMove');
                     moves.push(new QualityMove(directions[d], value));
                 }
             }
@@ -762,11 +747,9 @@ var Bot2048 = (function () {
     
     var DeepMoveFinder = Class.extend({
         __construct : function (context) {
-            countLogger.log('DeepMoveFinder.__construct: new BestMoveFinder');
             this.bestMoveFinder = new BestMoveFinder(context);
             this.mutator = context.getMutator();
             this.qualitySorter = context.getQualitySorter();
-            countLogger.log('DeepMoveFinder.__construct: new OpponentMoveIterator');
             this.opponentMoveIterator = new OpponentMoveIterator();
         },
         qualitySort : function (m1, m2) {
@@ -790,7 +773,6 @@ var Bot2048 = (function () {
                         }
                     }
                 
-                    countLogger.log('DeepMoveFinder.find: new QualityMove');
                     moves.push(new QualityMove(directions[d], worstQuality));
                 }
             }
@@ -807,14 +789,12 @@ var Bot2048 = (function () {
 
     var BestMoveFinderFactory = Class.extend({
         produce : function (context) {
-            countLogger.log('BestMoveFinderFactory.produce: new BestMoveFinder');
             return new BestMoveFinder(context);
         }
     });
     
     var DeepMoveFinderFactory = Class.extend({
         produce : function (context) {
-            countLogger.log('DeepMoveFinderFactory.produce: new BestMoveFinder');
             return new DeepMoveFinder(context);
         }
     });
@@ -841,9 +821,6 @@ var Bot2048 = (function () {
     var QualityDecider = Class.extend({
         __construct : function (qualityStrategy, finderFactory) {
             this.qualityStrategy = qualityStrategy;
-            countLogger.log('QualityDecider.__construct: new CachingMutator');
-            countLogger.log('QualityDecider.__construct: new QualitySorter');
-            countLogger.log('QualityDecider.__construct: new FinderContext');
             this.finder = finderFactory.produce(new FinderContext(qualityStrategy, new CachingMutator(), new QualitySorter()));
         },
         decide : function (field) {
@@ -920,5 +897,5 @@ var bot = new Bot2048();
 bot.start();
 window.setTimeout(function () {
     bot.stop();
-}, 500);
+}, 5000);
 
