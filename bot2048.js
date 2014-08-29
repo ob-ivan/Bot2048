@@ -567,7 +567,7 @@ var Bot2048 = (function () {
             return max;
         },
         fallback : function (field) {
-            return field.forEach(fallbackStep.bind(this), this.getPoint(0, 0, 0));
+            return field.forEach(this.fallbackStep.bind(this), this.getPoint(0, 0, 0));
         },
         find : function (field) {
             return this.fieldRegistry.get(field, this.fallback.bind(this, field));
@@ -624,9 +624,6 @@ var Bot2048 = (function () {
     
     var MaximumQualityStrategy = Class.extend({
         getFinder : function () {
-            if (typeof this.finder === 'undefined') {
-                this.finder = new MaximumFinder(new ValuePointRegistry());
-            }
             return this.finder;
         },
         evaluate : function (field) {
@@ -639,9 +636,6 @@ var Bot2048 = (function () {
             this.finder = finder;
         },
         getFinder : function () {
-            if (typeof this.finder === 'undefined') {
-                this.finder = new MaximumFinder(new ValuePointRegistry());
-            }
             return this.finder;
         },
         getTraverser : function () {
@@ -906,7 +900,7 @@ var Bot2048 = (function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
             this.decider = new QualityDecider(
-                new GravityQualityStrategy(new MaximumFinder()),
+                new GravityQualityStrategy(new MaximumFinder(new ValuePointRegistry())),
                 new BestMoveFinderFactory()
             );
             this.stopper = new GameOverStopper();
