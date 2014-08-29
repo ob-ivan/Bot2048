@@ -104,9 +104,7 @@ var Bot2048 = (function () {
         },
         get : function (key, fallback) {
             if (typeof this.data[key] === 'undefined') {
-                var value = fallback(key);
-                console.log('Registry.get', key, value);
-                this.data[key] = value;
+                this.data[key] = fallback(key);
             }
             return this.data[key];
         }
@@ -614,7 +612,6 @@ var Bot2048 = (function () {
         },
         evaluateRecursive : function (field, point, sum) {
             var max = 0;
-            console.log('ChainQualityStrategy.evaluateRecursive: point', point);
             var pointValue = field.getValue(point);
             if (! pointValue) {
                 return sum + 1;
@@ -638,9 +635,7 @@ var Bot2048 = (function () {
             return max;
         },
         evaluate : function (field) {
-            var found = this.getFinder().find(field);
-            console.log('ChainQualityStrategy.evaluate: found', found);
-            return this.evaluateRecursive(field, found, 0);
+            return this.evaluateRecursive(field, this.getFinder().find(field), 0);
         }
     });
 
