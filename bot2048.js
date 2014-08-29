@@ -339,9 +339,33 @@ var Bot2048 = (function () {
                 case Direction.LEFT  : return this.moveLeft(field);
                 case Direction.UP    : return this.transpose(this.moveLeft(this.transpose(field)));
             }
+        },
+        applyOpponentMove : function (field, opponentMove) {
+            var builder = new FieldBuilder();
+            for (var i = 0; i < this.SIZE; ++i) {
+                for (var j = 0; j < this.SIZE; ++j) {
+                    var v = i === opponentMove.i() && j === opponentMove.j()
+                        ? opponentMove.v()
+                        : field.getValue(i, j)
+                    ;
+                    builder.setValue(i, j, v);
+                }
+            }
+            return builder.produce();
         }
     });
 
+    var OpponentMoveIterator = Class.extend({
+        iterate : function (field) {
+            return field.forEach(function (i, j, v, a) {
+                if (v === 0) {
+                    a.push(new ValuePoint(i, j, 1));
+                    a.push(new ValuePoint(i, j, 2));
+                }
+            }, []);
+        }
+    });
+    
     /////////////////////////////////////// DOM interaction ///////////////////////////////////////
 
     var FieldReader = Class.extend({
@@ -406,6 +430,12 @@ var Bot2048 = (function () {
         }
     });
 
+    /**
+     *  interface QualityStrategy {
+     *      integer evaluate(Field field);
+     *  }
+    **/
+    
     var MaximumQualityStrategy = Class.extend({
         getFinder : function () {
             if (typeof this.finder === 'undefined') {
@@ -530,34 +560,87 @@ var Bot2048 = (function () {
         }
     });
 
+    /**
+     *  interface MoveFinder {
+     *      QualityMove find(Field field);
+     *  }
+    **/
+    
     var BestMoveFinder = Class.extend({
-        __construct : function (qualityStrategy) {
+        __construct : function (qualityStrategy, mutator) {
             this.qualityStrategy = qualityStrategy;
-        },
-        getMutator : function () {
-            if (typeof this.mutator === 'undefined') {
-                this.mutator = new Mutator();
-            }
-            return this.mutator;
+            this.mutator = mutator;
         },
         qualitySort : function (m1, m2) {
             return m1.getQuality() - m2.getQuality();
         },
         find : function (field) {
             var moves = [];
-            var mutator = this.getMutator();
-            for (var directions = Direction.all(), i = 0; i < directions.length; ++i) {
-                var candidate = mutator.move(field, directions[i]);
+            for (var directions = Direction.all(), d = 0; d < directions.length; ++d) {
+                var candidate = this.mutator.move(field, directions[d]);
                 if (! candidate.equals(field)) {
                     var value = this.qualityStrategy.evaluate(candidate);
-                    moves.push(new QualityMove(directions[i], value));
+                    moves.push(new QualityMove(directions[d], value));
                 }
             }
             moves.sort(this.qualitySort);
             return moves.pop();
         }
     });
+    
+    var DeepMoveFinder = Class.extend({
+        __construct : function (qualityStrategy, mutator) {
+            this.bestMoveFinder = new BestMoveFinder(qualityStrategy, mutator);
+            this.mutator = mutator;
+            this.opponentMoveIterator = new OpponentMoveIterator();
+        },
+        qualitySort : function (m1, m2) {
+            return m1.getQuality() - m2.getQuality();
+        },
+        find : function (field) {
+            var moves = [];
+            for (var directions = Direction.all(), d = 0; d < directions.length; ++d) {
+                var candidate = this.mutator.move(field, directions[d]);
+                if (! candidate.equals(field)) {
+                
+                    // List opponent's moves and find a best move for each of them.
+                    // The worst of them is the quality of the candidate.
+                    var opponentMoves = this.opponentMoveIterator.iterate(field);
+                    var worstQuality = Infinity;
+                    for (var om = 0; om < opponentMoves.length; ++om) {
+                        var appliedCandidate = this.mutator.applyOpponentMove(candidate, opponentMoves[om]);
+                        var bestQuality = this.bestMoveFinder.find(appliedCandidate).getQuality();
+                        if (bestQuality < worstQuality) {
+                            worstQuality = bestQuality;
+                        }
+                    }
+                
+                    moves.push(new QualityMove(directions[d], worstQuality));
+                }
+            }
+            moves.sort(this.qualitySort);
+            return moves.pop();
+        }
+    });
+    
+    /**
+     *  interface FinderFactory {
+     *      MoveFinder produce(QualityStrategy qualityStragegy, Mutator mutator);
+     *  }
+    **/
 
+    var BestMoveFinderFactory = Class.extend({
+        produce : function (qualityStragegy, mutator) {
+            return new BestMoveFinder(qualityStrategy, mutator);
+        }
+    });
+    
+    var DeepMoveFinderFactory = Class.extend({
+        produce : function (qualityStragegy, mutator) {
+            return new DeepMoveFinder(qualityStrategy, mutator);
+        }
+    });
+    
     /**
      *  interface Decider {
      *      // Return null iff no turns can be made.
@@ -578,9 +661,9 @@ var Bot2048 = (function () {
     });
 
     var QualityDecider = Class.extend({
-        __construct : function (qualityStrategy) {
+        __construct : function (qualityStrategy, finderFactory) {
             this.qualityStrategy = qualityStrategy;
-            this.finder = new BestMoveFinder(qualityStrategy);
+            this.finder = finderFactory.produce(qualityStrategy, new Mutator());
         },
         decide : function (field) {
             var currentQuality = this.qualityStrategy.evaluate(field);
@@ -614,7 +697,10 @@ var Bot2048 = (function () {
         __construct : function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
-            this.decider = new QualityDecider(new SnakeQualityStrategy());
+            this.decider = new QualityDecider(
+                new SnakeQualityStrategy(),
+                new DeepMoveFinderFactory()
+            );
             this.stopper = new GameOverStopper();
         },
         turn : function () {
