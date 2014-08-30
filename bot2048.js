@@ -144,6 +144,7 @@ var Bot2048 = (function () {
             if (typeof this.extractor === 'undefined') {
                 this.extractor = this.produceExtractor();
             }
+            return this.extractor;
         },
         produce : function () {
             return new ExtractorRegistry(this.getExtractor());
@@ -676,17 +677,73 @@ var Bot2048 = (function () {
         },
     });
 
+    var BurnMap = Class.extend({
+        __construct : function (mask) {
+            this.mask = mask || 0;
+        },
+        single : function (i, j) {
+            return 1 << (i * SIZE + j);
+        },
+        normalize : function (args) {
+            if (args[0] instanceof ValuePoint) {
+                args[1] = args[0].j();
+                args[0] = args[0].i();
+            }
+            return args;
+        },
+        add : function (i, j) {
+            this.normalize(arguments);
+            this.mask |= this.single(i, j);
+        },
+        has : function (i, j) {
+            this.normalize(arguments);
+            return this.mask & this.single(i, j);
+        },
+        clone : function () {
+            return new BurnMap(this.mask);
+        }
+    });
+    
+    var Chain = Class.extend({
+        __construct : function (points) {
+            this.points = points ? [].concat(points) : [];
+        },
+        add : function (point) {
+            this.points.push(point);
+        },
+        getPoints : function () {
+            return this.points;
+        },
+        clone : function () {
+            return new Chain(this.points);
+        }
+    });
+    
     var ChainsFindingProcess = Class.extend({
         __construct : function (traverser, field, start) {
             this.traverser = traverser;
             this.field = field;
             this.start = start;
         },
+        recursion : function (chain, burn, point) {
+            var value = this.field.getValue(point);
+            var adjacents = this.traverser.getAdjacentPoints(point).filter(function (v) {
+                return ! burn.has(point) && this.field.getValue(v) <= value;
+            }.bind(this));
+            if (! adjacents.length) {
+                return [chain];
+            }
+            chain.add(point);
+            burn.add(point);
+            var chains = [];
+            for (var a = 0; a < adjacents.length; ++a) {
+                chains.push.apply(chains, this.recursion(chain.clone(), burn.clone(), adjacents[a]));
+            }
+            return chains;
+        },
         getChains : function () {
             if (typeof this.chains === 'undefined') {
-                var burn = new PointRegistryFactory().produce();
-                burn.set(start, true);
-                // TODO
+                this.chains = this.recursion(new Chain(), new BurnMap(), this.start);
             }
             return this.chains;
         }
@@ -1026,14 +1083,18 @@ var Bot2048 = (function () {
         stop : function () {
             window.clearTimeout(this.timeout);
             this.stopped = true;
+        },
+        test : function () {
+            var process = new ChainsFindingProcess(
+                new Traverser(),
+                this.fieldReader.read(),
+                new Point(3, 0)
+            );
+            console.log(process.getChains());
         }
     });
     return Bot2048;
 })();
 
 var bot = new Bot2048();
-bot.start();
-window.setTimeout(function () {
-    bot.stop();
-}, 60000);
-
+bot.test();
