@@ -397,7 +397,7 @@ var Bot2048 = (function () {
         _getAdjacentFallback : function (point, direction) {
             var i = point.i();
             var j = point.j();
-            switch (direction.getValue) {
+            switch (direction.getValue()) {
                 case Direction.DOWN : ++i; break;
                 case Direction.LEFT : --j; break;
                 case Direction.RIGHT: ++j; break;
