@@ -1085,12 +1085,8 @@ var Bot2048 = (function () {
             this.stopped = true;
         },
         test : function () {
-            var process = new ChainsFindingProcess(
-                new Traverser(),
-                this.fieldReader.read(),
-                new Point(3, 0)
-            );
-            console.log(process.getChains());
+            var finder = new ChainsFinder(new MaximumCollectionFinder(new ValuePointRegistry()));
+            console.log(finder.find());
         }
     });
     return Bot2048;
