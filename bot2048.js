@@ -204,6 +204,18 @@ var Bot2048 = (function () {
         }
     });
 
+    var PointCodeExtractor = Class.extend({
+        extract : function (point) {
+            return [point.i(), point.j()].join('-');
+        }
+    });
+    
+    var PointRegistryFactory = Class.extend({
+        produce : function () {
+            return new ExtractorRegistry(new PointCodeExtractor());
+        }
+    });
+    
     var ValuePoint = Point.extend({
         __construct : function (i, j, v) {
             this._super(i, j);
@@ -214,6 +226,18 @@ var Bot2048 = (function () {
         }
     });
 
+    var ValuePointCodeExtractor = Class.extend({
+        extract : function (point) {
+            return [point.i(), point.j(), point.v()].join('-');
+        }
+    });
+    
+    var ValuePointRegistryFactory = Class.extend({
+        produce : function () {
+            return new ExtractorRegistry(new ValuePointCodeExtractor());
+        }
+    });
+    
     var Field = Class.extend({
         SIZE : SIZE,
         __construct : function (values) {
@@ -604,15 +628,32 @@ var Bot2048 = (function () {
         },
     });
 
+    var ChainsFindingProcess = Class.extend({
+        __construct : function (field, start) {
+            this.field = field;
+            this.start = start;
+            
+        },
+        getChains : function () {
+            if (typeof this.chains === 'undefined') {
+                // TODO
+            }
+            return this.chains;
+        }
+    });
+    
     var ChainsFinder = Class.extend({
         __construct : function (maximumCollectionFinder) {
             this.maximumCollectionFinder = maximumCollectionFinder;
         },
         find : function (field) {
             var maximumCollection = this.maximumCollectionFinder.find(field);
+            var chains = [];
             for (var m = 0; m < maximumCollection.length; ++m) {
-                // TODO
+                var process = new ChainsFindingProcess(field, maximumCollection[m]);
+                chains.push.apply(chains, process.getChains());
             }
+            return chains;
         }
     });
     
