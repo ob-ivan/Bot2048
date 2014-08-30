@@ -4,6 +4,7 @@ var Bot2048 = (function () {
     //////////////////////////////////////////// Toolbox ////////////////////////////////////////////
 
     var Class = (function () {
+        var PRIVATE_MODE = false;
         var initializing = false, fnTest = /xyz/.test(function(){xyz;}) ? /\b_super\b/ : /.*/;
 
         // The base Class implementation (does nothing)
@@ -48,26 +49,30 @@ var Bot2048 = (function () {
                     return;
                 }
 
-                // Initialize public object to bear the prototype chain.
-                initializing = true;
-                var _public = new Class();
-                initializing = false;
+                if (PRIVATE_MODE) {
+                    // Initialize public object to bear the prototype chain.
+                    initializing = true;
+                    var _public = new Class();
+                    initializing = false;
 
-                // Bind public properties to public object.
-                for (var name in proto) {
-                    if (name.charAt(0) === '_') {
-                        _public[name] = null;
-                    } else if (typeof proto[name] === 'function') {
-                        _public[name] = proto[name].bind(this);
+                    // Bind public properties to public object.
+                    for (var name in proto) {
+                        if (name.charAt(0) === '_') {
+                            _public[name] = null;
+                        } else if (typeof proto[name] === 'function') {
+                            _public[name] = proto[name].bind(this);
+                        }
                     }
+                    this._public = _public;
                 }
-                this._public = _public;
 
                 if (this.__construct) {
                     this.__construct.apply(this, arguments);
                 }
 
-                return _public;
+                if (PRIVATE_MODE) {
+                    return _public;
+                }
             }
             Class.prototype = proto;
             Class.prototype.constructor = Class;
@@ -225,17 +230,17 @@ var Bot2048 = (function () {
     
     var Point = Class.extend({
         __construct : function (i, j) {
-            this.i = i;
-            this.j = j;
+            this._i = i;
+            this._j = j;
         },
         i : function () {
-            return this.i;
+            return this._i;
         },
         j : function () {
-            return this.j;
+            return this._j;
         },
         getCode : function () {
-            return [this.i, this.j].join('-');
+            return [this._i, this._j].join('-');
         }
     });
 
@@ -254,13 +259,13 @@ var Bot2048 = (function () {
     var ValuePoint = Point.extend({
         __construct : function (i, j, v) {
             this._super(i, j);
-            this.v = v;
+            this._v = v;
         },
         v : function () {
-            return this.v;
+            return this._v;
         },
         getCode : function () {
-            return [this.i, this.j, this.v].join('-');
+            return [this.i(), this.j(), this._v].join('-');
         }
     });
 
@@ -698,19 +703,18 @@ var Bot2048 = (function () {
         single : function (i, j) {
             return 1 << (i * SIZE + j);
         },
-        normalize : function (args) {
-            if (args[0] instanceof ValuePoint) {
-                args[1] = args[0].j();
-                args[0] = args[0].i();
-            }
-            return args;
-        },
         add : function (i, j) {
-            this.normalize(arguments);
+            if (i instanceof ValuePoint) {
+                j = i.j();
+                i = i.i();
+            }
             this.mask |= this.single(i, j);
         },
         has : function (i, j) {
-            this.normalize(arguments);
+            if (i instanceof ValuePoint) {
+                j = i.j();
+                i = i.i();
+            }
             return this.mask & this.single(i, j);
         },
         clone : function () {
@@ -744,10 +748,10 @@ var Bot2048 = (function () {
             var adjacents = this.traverser.getAdjacentPoints(point).filter(function (v) {
                 return ! burn.has(point) && this.field.getValue(v) <= value;
             }.bind(this));
+            chain.add(point);
             if (! adjacents.length) {
                 return [chain];
             }
-            chain.add(point);
             burn.add(point);
             var chains = [];
             for (var a = 0; a < adjacents.length; ++a) {
