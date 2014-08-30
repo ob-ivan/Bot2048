@@ -232,6 +232,9 @@ var Bot2048 = (function () {
         },
         j : function () {
             return this.j;
+        },
+        getCode : function () {
+            return [this.i, this.j].join('-');
         }
     });
 
@@ -254,6 +257,9 @@ var Bot2048 = (function () {
         },
         v : function () {
             return this.v;
+        },
+        getCode : function () {
+            return [this.i, this.j, this.v].join('-');
         }
     });
 
@@ -630,6 +636,9 @@ var Bot2048 = (function () {
             this.fieldRegistry = new FieldRegistryFactory().produce();
             this.valuePointRegistry = valuePointRegistry;
         },
+        getValuePointRegistry : function () {
+            return this.valuePointRegistry;
+        },
         getPoint : function (i, j, v) {
             return this.valuePointRegistry.get(i, j, v);
         },
@@ -648,9 +657,13 @@ var Bot2048 = (function () {
     });
     
     var MaximumCollection = Class.extend({
-        __construct : function () {
+        __construct : function (valuePointRegistry) {
+            this.valuePointRegistry = valuePointRegistry;
             this.maximums = [];
             this.value = 0;
+        },
+        getPoint : function (i, j, v) {
+            return this.valuePointRegistry.get(i, j, v);
         },
         add : function (i, j, v) {
             var diff = v - this.value;
@@ -661,7 +674,6 @@ var Bot2048 = (function () {
             } else if (! diff) {
                 this.maximums.push(point);
             }
-            return this;
         },
         getMaximums : function () {
             return this.maximums;
@@ -670,10 +682,11 @@ var Bot2048 = (function () {
     
     var MaximumCollectionFinder = MaximumFinder.extend({
         fallbackStep : function (i, j, v, max) {
-            return max.add(i, j, v);
+            max.add(i, j, v);
+            return max;
         },
         fallback : function (field) {
-            return field.forEach(fallbackStep.bind(this), new MaximumCollection());
+            return field.forEach(this.fallbackStep.bind(this), new MaximumCollection(this.getValuePointRegistry()));
         },
     });
 
@@ -1086,7 +1099,7 @@ var Bot2048 = (function () {
         },
         test : function () {
             var finder = new ChainsFinder(new MaximumCollectionFinder(new ValuePointRegistry()));
-            console.log(finder.find());
+            console.log(finder.find(this.fieldReader.read()));
         }
     });
     return Bot2048;
