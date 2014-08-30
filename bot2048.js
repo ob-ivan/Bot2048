@@ -104,7 +104,11 @@ var Bot2048 = (function () {
         },
         get : function (key, fallback) {
             if (typeof this.data[key] === 'undefined') {
-                this.data[key] = fallback(key);
+                if (typeof fallback === 'function') {
+                    this.data[key] = fallback(key);
+                } else {
+                    return null;
+                }
             }
             return this.data[key];
         }
@@ -129,6 +133,20 @@ var Bot2048 = (function () {
         },
         get : function (object, fallback) {
             return this.registry.get(this.getKey(object), fallback);
+        }
+    });
+    
+    var ExtractorRegistryFactory = Class.extend({
+        produceExtractor : function () {
+            throw new Error('ExtractorRegistryFactory.produceExtractor is abstract and must be overloaded');
+        },
+        getExtractor : function () {
+            if (typeof this.extractor === 'undefined') {
+                this.extractor = this.produceExtractor();
+            }
+        },
+        produce : function () {
+            return new ExtractorRegistry(this.getExtractor());
         }
     });
     
@@ -191,6 +209,18 @@ var Bot2048 = (function () {
         ];
     };
 
+    var DirectionCodeExtractor = Class.extend({
+        extract : function (direction) {
+            return direction.getValue();
+        }
+    });
+    
+    var DirectionRegistryFactory = ExtractorRegistryFactory.extend({
+        produceExtractor : function () {
+            return new DirectionCodeExtractor();
+        }
+    });
+    
     var Point = Class.extend({
         __construct : function (i, j) {
             this.i = i;
@@ -210,9 +240,9 @@ var Bot2048 = (function () {
         }
     });
     
-    var PointRegistryFactory = Class.extend({
-        produce : function () {
-            return new ExtractorRegistry(new PointCodeExtractor());
+    var PointRegistryFactory = ExtractorRegistryFactory.extend({
+        produceExtractor : function () {
+            return new PointCodeExtractor();
         }
     });
     
@@ -232,9 +262,9 @@ var Bot2048 = (function () {
         }
     });
     
-    var ValuePointRegistryFactory = Class.extend({
-        produce : function () {
-            return new ExtractorRegistry(new ValuePointCodeExtractor());
+    var ValuePointRegistryFactory = ExtractorRegistryFactory.extend({
+        produceExtractor : function () {
+            return new ValuePointCodeExtractor();
         }
     });
     
@@ -317,9 +347,9 @@ var Bot2048 = (function () {
         }
     });
     
-    var FieldRegistryFactory = Class.extend({
-        produce : function () {
-            return new ExtractorRegistry(new FieldCodeExtractor());
+    var FieldRegistryFactory = ExtractorRegistryFactory.extend({
+        produceExtractor : function () {
+            return new FieldCodeExtractor();
         }
     });
     
@@ -332,6 +362,7 @@ var Bot2048 = (function () {
     var Traverser = Class.extend({
         __construct : function () {
             this.adjacentRegistry = new Registry();
+            this.adjacentPointsRegistry = new PointRegistryFactory().produce();
         },
         getLocus : function (point) {
             var i = point.i(),
@@ -368,6 +399,23 @@ var Bot2048 = (function () {
             return this.adjacentRegistry.get(
                 [point.i(), point.j(), direction.getValue()].join('-'),
                 this._getAdjacentFallback.bind(this, point, direction)
+            );
+        },
+        _getAdjacentPointsFallback : function (point) {
+            var adjacentPoints = [];
+            for (var directions = Direction.all(), d = 0; d < directions.length; ++d) {
+                var adjacent = this.getAdjacent(point, directions[d]);
+                if (! adjacent) {
+                    continue;
+                }
+                adjacentPoints.push(adjacent);
+            }
+            return adjacentPoints;
+        },
+        getAdjacentPoints : function (point) {
+            return this.adjacentPointsRegistry.get(
+                point,
+                this._getAdjacentPointsFallback.bind(this, point)
             );
         }
     });
@@ -629,13 +677,15 @@ var Bot2048 = (function () {
     });
 
     var ChainsFindingProcess = Class.extend({
-        __construct : function (field, start) {
+        __construct : function (traverser, field, start) {
+            this.traverser = traverser;
             this.field = field;
             this.start = start;
-            
         },
         getChains : function () {
             if (typeof this.chains === 'undefined') {
+                var burn = new PointRegistryFactory().produce();
+                burn.set(start, true);
                 // TODO
             }
             return this.chains;
@@ -646,11 +696,14 @@ var Bot2048 = (function () {
         __construct : function (maximumCollectionFinder) {
             this.maximumCollectionFinder = maximumCollectionFinder;
         },
+        produceProcess : function (field, maximum) {
+            return new ChainsFindingProcess(this.traverser, field, maximum);
+        },
         find : function (field) {
             var maximumCollection = this.maximumCollectionFinder.find(field);
             var chains = [];
             for (var m = 0; m < maximumCollection.length; ++m) {
-                var process = new ChainsFindingProcess(field, maximumCollection[m]);
+                var process = this.produceProcess(field, maximumCollection[m]);
                 chains.push.apply(chains, process.getChains());
             }
             return chains;
