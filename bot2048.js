@@ -15,13 +15,13 @@ var Bot2048 = (function () {
             // Instantiate a base class (but only create the instance,
             // don't run the init constructor)
             initializing = true;
-            var prototype = new this();
+            var proto = new this();
             initializing = false;
 
             // Copy the properties over onto the new prototype
             for (var name in prop) {
                 // Check if we're overwriting an existing function
-                prototype[name] = typeof prop[name] == "function" && typeof _super[name] == "function" && fnTest.test(prop[name])
+                proto[name] = typeof prop[name] == "function" && typeof _super[name] == "function" && fnTest.test(prop[name])
                     ? (function (name, fn) {
                         return function() {
                             var tmp = this._super;
@@ -53,11 +53,11 @@ var Bot2048 = (function () {
                 initializing = false;
 
                 // Bind public properties to public object.
-                for (var property in this) {
-                    if (/^_/.test(property)) {
-                        _public[property] = null;
-                    } else if (typeof this[property] === 'function') {
-                        _public[property] = this[property].bind(this);
+                for (var name in proto) {
+                    if (name.charAt(0) === '_') {
+                        _public[name] = null;
+                    } else if (typeof proto[name] === 'function') {
+                        _public[name] = proto[name].bind(this);
                     }
                 }
                 this._public = _public;
@@ -68,7 +68,7 @@ var Bot2048 = (function () {
 
                 return _public;
             }
-            Class.prototype = prototype;
+            Class.prototype = proto;
             Class.prototype.constructor = Class;
             Class.extend = extend;
 
