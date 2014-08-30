@@ -704,14 +704,14 @@ var Bot2048 = (function () {
             return 1 << (i * SIZE + j);
         },
         add : function (i, j) {
-            if (i instanceof ValuePoint) {
+            if (i instanceof Point) {
                 j = i.j();
                 i = i.i();
             }
             this.mask |= this.single(i, j);
         },
         has : function (i, j) {
-            if (i instanceof ValuePoint) {
+            if (i instanceof Point) {
                 j = i.j();
                 i = i.i();
             }
@@ -744,15 +744,18 @@ var Bot2048 = (function () {
             this.start = start;
         },
         recursion : function (chain, burn, point) {
-            var value = this.field.getValue(point);
-            var adjacents = this.traverser.getAdjacentPoints(point).filter(function (v) {
-                return ! burn.has(point) && this.field.getValue(v) <= value;
-            }.bind(this));
             chain.add(point);
+            burn.add(point);
+            var value = this.field.getValue(point);
+            if (! value) {
+                return [chain];
+            }
+            var adjacents = this.traverser.getAdjacentPoints(point).filter(function (v) {
+                return ! burn.has(v) && this.field.getValue(v) <= value;
+            }.bind(this));
             if (! adjacents.length) {
                 return [chain];
             }
-            burn.add(point);
             var chains = [];
             for (var a = 0; a < adjacents.length; ++a) {
                 chains.push.apply(chains, this.recursion(chain.clone(), burn.clone(), adjacents[a]));
