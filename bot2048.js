@@ -1,3 +1,4 @@
+
 var Bot2048 = (function () {
 
     //////////////////////////////////////////// Toolbox ////////////////////////////////////////////
@@ -763,17 +764,18 @@ var Bot2048 = (function () {
     });
     
     var ChainsFinder = Class.extend({
-        __construct : function (maximumCollectionFinder) {
+        __construct : function (traverser, maximumCollectionFinder) {
+            this.traverser = traverser;
             this.maximumCollectionFinder = maximumCollectionFinder;
         },
         produceProcess : function (field, maximum) {
             return new ChainsFindingProcess(this.traverser, field, maximum);
         },
         find : function (field) {
-            var maximumCollection = this.maximumCollectionFinder.find(field);
+            var maximums = this.maximumCollectionFinder.find(field).getMaximums();
             var chains = [];
-            for (var m = 0; m < maximumCollection.length; ++m) {
-                var process = this.produceProcess(field, maximumCollection[m]);
+            for (var m = 0; m < maximums.length; ++m) {
+                var process = this.produceProcess(field, maximums[m]);
                 chains.push.apply(chains, process.getChains());
             }
             return chains;
@@ -796,16 +798,14 @@ var Bot2048 = (function () {
     });
 
     var ChainQualityStrategy = Class.extend({
-        __construct : function (finder) {
+        __construct : function (traverser, finder) {
+            this.traverser = traverser;
             this.finder = finder;
         },
         getFinder : function () {
             return this.finder;
         },
         getTraverser : function () {
-            if (typeof this.traverser === 'undefined') {
-                this.traverser = new Traverser();
-            }
             return this.traverser;
         },
         evaluateRecursive : function (field, point, sum) {
@@ -1063,8 +1063,12 @@ var Bot2048 = (function () {
         __construct : function () {
             this.fieldReader = new FieldReader();
             this.keyboard = new Keyboard();
+            this.traverser = new Traverser();
             this.decider = new QualityDecider(
-                new GravityQualityStrategy(new MaximumFinder(new ValuePointRegistry())),
+                new GravityQualityStrategy(
+                    this.traverser,
+                    new MaximumFinder(new ValuePointRegistry())
+                ),
                 new BestMoveFinderFactory()
             );
             this.stopper = new GameOverStopper();
@@ -1098,8 +1102,22 @@ var Bot2048 = (function () {
             this.stopped = true;
         },
         test : function () {
-            var finder = new ChainsFinder(new MaximumCollectionFinder(new ValuePointRegistry()));
-            console.log(finder.find(this.fieldReader.read()));
+            var finder = new ChainsFinder(
+                this.traverser,
+                new MaximumCollectionFinder(new ValuePointRegistry())
+            );
+            console.log(
+                'Bot2048.test',
+                finder.find(this.fieldReader.read()).map(
+                    function (chain) {
+                        return chain.getPoints().map(
+                            function (point) {
+                                return point.getCode();
+                            }
+                        );
+                    }
+                )
+            );
         }
     });
     return Bot2048;
