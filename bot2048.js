@@ -1045,7 +1045,7 @@ var Bot2048 = (function () {
                 return;
             }
             if (bestMove.getQuality() < currentQuality / 2) {
-                return;
+                // return;
             }
             return bestMove.getDirection();
         }
